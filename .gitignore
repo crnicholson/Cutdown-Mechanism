@@ -1,3 +1,9 @@
 .DS_Store
 .vscode
 .json
+fp-info-cache
+_autosave-cutdownMechanism v2.kicad_pcb
+*.kicad_pcb.lck
+*.kicad_sch.lck
+*.kicad_prl
+cutdownMechanism v2-backups

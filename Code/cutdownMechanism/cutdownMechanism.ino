@@ -99,10 +99,10 @@ void setup() {
 #ifdef LORA_MODE
   Serial.println("StratoSoar LoRa cutdown mechanism ");
 #ifdef REMOTE
-  Serial.print("remote.");
+  Serial.print("remote. Press button to trigger release.");
 #endif
 #ifndef REMOTE
-  Serial.print("receiver.");
+  Serial.print("receiver. Waiting for button press on remote to release.");
 #endif
 #endif
 #ifndef LORA_MODE
