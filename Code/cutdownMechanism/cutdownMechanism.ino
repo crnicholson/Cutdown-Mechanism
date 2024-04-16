@@ -18,15 +18,17 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 // https://github.com/crnicholson/StratoSoar-MK2/.
 
-// Usage.
+// Usage:
 // 1. Order PCB and components as provided on the GitHub repository.
 // 2. Solder components.
 // 3. Upload this code to an Arduino Nano.
 // 4. 3D print necessary parts.
 // 5. Construct servo release mechanism and place in payload.
-// 6. Attach servo to PCB and attach PCB to payload. 
-// 7. Power on the PCB on flight day, and press the button to start the fun!
+// 6. Attach servo to PCB and attach PCB to payload.
+// 7. Power on the PCB on flight day, and press the BUTTON to start the fun!
 
+#include <LoRa.h>
+#include <SPI.h>
 #include <Servo.h>
 #include <SoftwareSerial.h>
 #include <TinyBME280.h>
@@ -35,22 +37,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #include <avr/interrupt.h>
 #include <avr/sleep.h>
 
-// Settings.
-static const uint32_t GPSBaud = 9600;
-float refPressure = 101325.00; // Daily pressure at sea level today in Pa.
-long cutdownAlt = 10000;       // At this altitude (in meters), drop the glider.
-long tooLong = 60;             // How many minutes are too many minutes before dropping the glider?
-int restingPoint = 90;         // Resting or middle point of the servo, in degrees.
-int openPoint = 180;           // Value in ddgrees where the servo has dropped the glider.
-int closedPoint = 0;           // Value in degrees where the servo has not dropped the glider.
-#define BUTTON_START           // If enabled, the countdown timer starts when you press the button.
-#define DEVMODE                // If enabled, the serial monitor will be enabled and data will be printed on it.
-
-// Pin settings.
-static const int TXPin = 3, RXPin = 4;
-int servoPin = 5; // Pin that connects to Servo 1 on the PCB.
-int button = 9;   // Pin that connects to the button on the PCB.
-int LED = 13;     // Built in Arduino Nano LED.
+#include "headers/settings.h"
 
 // Variables.
 float lat, lon;
@@ -63,66 +50,84 @@ TinyGPSPlus gps;
 Servo servo;
 
 // The serial connection to the GPS device.
-SoftwareSerial ss(RXPin, TXPin);
+SoftwareSerial ss(RX_PIN, TX_PIN);
 
-tooLong = tooLong * 60000;
+long tooLongMS = TOO_LONG * 60000;
 
 void setup() {
-  pinMode(button, INPUT);
+  pinMode(BUTTON, INPUT);
   pinMode(LED, OUTPUT);
 
-  digitalWrite(LED, HIGH);
-  delay(500);
-  digitalWrite(LED, LOW);
-  delay(500);
-  digitalWrite(LED, HIGH);
-  delay(500);
-  digitalWrite(LED, LOW);
+  blink();
 
-  servo.attach(servoPin);
+  servo.attach(SERVO_PIN);
   delay(100);
-  servo.write(closedPoint);
+  servo.write(CLOSED_POINT);
   delay(1000);
-  servo.write(restingPoint);
+  servo.write(RESTING_POINT);
   delay(1000);
-  servo.write(openPoint);
+  servo.write(OPEN_POINT);
   delay(5000);
-  servo.write(closedPoint);
+  servo.write(CLOSED_POINT);
 
 #ifdef DEVMODE
-  Serial.begin(115200);
+  Serial.begin(MONITOR_BAUD);
 #endif
-  ss.begin(GPSBaud);
+  ss.begin(GPS_BAUD);
   Wire.begin();
   // BME280setI2Caddress(BME_ADDRESS); // This gave me many issues in testing, don't do it!
   BME280setup();
 
+#ifdef LORA_MODE
+  LoRa.setPins(SS_PIN, RESET_PIN, DIO0_PIN); // Has to be before LoRa.begin().
+
+  if (!LoRa.begin(FREQUENCY)) {
 #ifdef DEVMODE
-  Serial.println("StratoSoar cutdown mechanism.");
+    Serial.println("Starting LoRa failed!");
+#endif
+    while (1)
+      ;
+  }
+
+  LoRa.setSyncWord(SYNC_WORD);               // Defined in settings.h.
+  LoRa.setSpreadingFactor(SPREADING_FACTOR); // Defined in settings.h.
+  LoRa.setSignalBandwidth(BANDWIDTH);        // Defined in settings.h.
+  LoRa.crc();                                // Use a checksum.
+#endif
+
+#ifdef DEVMODE
+#ifdef LORA_MODE
+  Serial.println("StratoSoar LoRa cutdown mechanism ");
+#ifdef REMOTE
+  Serial.print("remote.");
+#endif
+#ifndef REMOTE
+  Serial.print("receiver.");
+#endif
+#endif
+#ifndef LORA_MODE
+  Serial.println("StratoSoar normal cutdown mechanism.");
+#endif
   Serial.println("Starting in 10 seconds...");
 #endif
   delay(10000);
 }
 
 void loop() {
+#ifndef LORA_MODE
 #ifdef BUTTON_START
-  if (digitalRead(button) && !timerBegun) {
+  if (digitalRead(BUTTON) && !timerBegun) {
     start = millis();
-    digitalWrite(LED, HIGH);
-    delay(500);
-    digitalWrite(LED, LOW);
-    delay(500);
-    digitalWrite(LED, HIGH);
-    delay(500);
-    digitalWrite(LED, LOW);
+    blink();
     timerBegun = 1;
   }
-  if (digitalRead(button) && timerBegun) {
+  if (digitalRead(BUTTON) && timerBegun) {
     digitalWrite(LED, HIGH);
-    delay(5000);
+    delay(2000);
     digitalWrite(LED, LOW);
   }
 #endif
+
 #ifndef BUTTON_START
   if (!timerBegun) {
     start = millis();
@@ -130,55 +135,137 @@ void loop() {
   }
 #endif
 
+#ifdef BUTTON_START
+  if (!timerBegun) {
 #ifdef DEVMODE
-  if (millis() > 5000 && gps.charsProcessed() < 10) {
-    Serial.println(F("No GPS data received: check wiring"));
+    Serial.println("Press the BUTTON to start the program!");
+#endif
+    pulse();
   }
 #endif
 
-  altValid = gps.altitude.isValid();
-
-  if (altValid && gps.location.isValid()) {
-    lat = gps.location.lat();
-    lon = gps.location.lng();
-    gpsAlt = gps.altitude.meters();
+  if (timerBegun) {
+    if (millis() > 5000 && gps.charsProcessed() < 10) {
 #ifdef DEVMODE
-    Serial.print("Lat: ");
-    Serial.print(lat, 6);
-    Serial.print(" Lon: ");
-    Serial.print(lon, 6);
-    Serial.print(" GPS Alt: ");
-    Serial.print(gpsAlt);
+      Serial.println(F("No GPS data received: check wiring."));
 #endif
-  }
+      longPulse();
+    }
 
-  pressure = BME280pressure();          // Pressure in Pa.
-  temp = BME280temperature();           // Temp in C.
-  humidity = BME280humidity();          // Humidity in %RH.
-  bmeAlt = BME280altitude(refPressure); // Altitude in meters.
+    altValid = gps.altitude.isValid();
+
+    if (altValid && gps.location.isValid()) {
+      lat = gps.location.lat();
+      lon = gps.location.lng();
+      gpsAlt = gps.altitude.meters();
+
 #ifdef DEVMODE
-  Serial.print(" BME Alt: ");
-  Serial.print(bmeAlt);
-  Serial.print(" Pressure: ");
-  Serial.print(pressure);
-  Serial.print(" Temp: ");
-  Serial.print(temp);
-  Serial.print(" Humidity: ");
-  Serial.println(humidity);
+      Serial.print("Lat: ");
+      Serial.print(lat, 6);
+      Serial.print(" Lon: ");
+      Serial.print(lon, 6);
+      Serial.print(" GPS Alt: ");
+      Serial.print(gpsAlt);
+#endif
+    }
+
+    pressure = BME280pressure();           // Pressure in Pa.
+    temp = BME280temperature();            // Temp in C * 100.
+    humidity = BME280humidity();           // Humidity in %RH * 100.
+    bmeAlt = BME280altitude(REF_PRESSURE); // Altitude in meters.
+
+#ifdef DEVMODE
+    Serial.print(" BME Alt: ");
+    Serial.print(bmeAlt);
+    Serial.print(" Pressure (hPa): ");
+    Serial.print(pressure / 100);
+    Serial.print(" Temp (C): ");
+    Serial.print(temp / 100);
+    Serial.print(" Humidity (%RH): ");
+    Serial.println(humidity / 100);
 #endif
 
-  time = start - millis();
+    time = start - millis();
 
-  if ((altValid && gpsAlt >= cutdownAlt) | (bmeAlt >= cutdownAlt) | (time >= tooLong)) {
-    servo.write(openPoint);
-    delay(10000);
-    set_sleep_mode(SLEEP_MODE_PWR_DOWN);
-    cli(); // Disable interrupts
-    sleep_mode(); // Now sleep forever! It's like a dream...
+    // Open the servo and go into an infinite sleep.
+    if ((altValid && gpsAlt >= CUTDOWN_ALT) | (bmeAlt >= CUTDOWN_ALT) | (time >= tooLongMS)) {
+      servo.write(OPEN_POINT);
+      delay(20000);
+      set_sleep_mode(SLEEP_MODE_PWR_DOWN);
+      cli();        // Disable interrupts.
+      sleep_mode(); // Now sleep forever! It's like a dream...
+    }
+
+    delay(250);
   }
+#endif
+#ifdef LORA_MODE
+#ifdef REMOTE
+  if (digitalRead(BUTTON)) {
+    LoRa.beginPacket();
+    LoRa.print(1);
+    LoRa.endPacket();
+    delay(5000);
+  }
+#endif
+#ifndef REMOTE
+  int packetSize = LoRa.parsePacket();
+  if (packetSize) {
+    while (LoRa.available()) {
+      if (LoRa.read()) {
+        servo.write(OPEN_POINT);
+        blink();
+        delay(20000);
+        servo.write(CLOSED_POINT);
+      }
+    }
+  }
+#endif
+#endif
 }
 
 // Altitude in meters.
 float BME280altitude(float referencePressure) {
   return ((float)-45846.2) * (pow(((float)BME280pressure() / (float)referencePressure), 0.190263) - (float)1);
+}
+
+// Blink LED.
+void blink() {
+  digitalWrite(LED, HIGH);
+  delay(500);
+  digitalWrite(LED, LOW);
+  delay(500);
+  digitalWrite(LED, HIGH);
+  delay(500);
+  digitalWrite(LED, LOW);
+}
+
+// Pulse LED.
+void pulse() {
+  digitalWrite(LED, HIGH);
+  delay(100);
+  digitalWrite(LED, LOW);
+  delay(1000);
+  digitalWrite(LED, HIGH);
+  delay(100);
+  digitalWrite(LED, LOW);
+}
+
+// Long pulse the LED.
+void longPulse() {
+  digitalWrite(LED, HIGH);
+  delay(100);
+  digitalWrite(LED, LOW);
+  delay(1000);
+  digitalWrite(LED, HIGH);
+  delay(100);
+  digitalWrite(LED, LOW);
+  delay(1000);
+  digitalWrite(LED, HIGH);
+  delay(100);
+  digitalWrite(LED, LOW);
+  delay(1000);
+  digitalWrite(LED, HIGH);
+  delay(100);
+  digitalWrite(LED, LOW);
 }
