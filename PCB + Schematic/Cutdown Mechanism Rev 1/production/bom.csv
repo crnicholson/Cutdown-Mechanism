@@ -1,0 +1,13 @@
+﻿Designator,Footprint,Quantity,Value,LCSC Part #
+A1,Arduino_Nano,1,Arduino_Nano_v3.x,
+BT1,PinHeader_1x02_P2.54mm_Vertical,1,9V,
+"H1, H2, H3, H4, H5, H6",MountingHole_2.2mm_M2,6,MountingHole,
+J1,PinHeader_1x03_P2.54mm_Vertical,1,Servo 1,
+J2,PinHeader_1x03_P2.54mm_Vertical,1,Servo 2,
+J3,PinHeader_1x11_P2.54mm_Vertical,1,GPIO,
+J4,PinHeader_1x04_P2.54mm_Vertical,1,BME280,
+J5,PinHeader_1x04_P2.54mm_Vertical,1,NEO-6M,
+R1,R_Axial_DIN0207_L6.3mm_D2.5mm_P10.16mm_Horizontal,1,10K,
+SW1,SW_SPDT,1,Power,
+SW2,SW_PUSH_6mm,1,SW_Push_Open_Dual,
+U1,LoRa module,1,Ai-Thinker-Ra-02,

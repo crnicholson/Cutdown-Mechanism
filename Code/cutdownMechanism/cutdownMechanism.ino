@@ -25,7 +25,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 // 4. 3D print necessary parts.
 // 5. Construct servo release mechanism and place in payload.
 // 6. Attach servo to PCB and attach PCB to payload.
-// 7. Power on the PCB on flight day, and press the BUTTON to start the fun!
+// 7. Power on the PCB on flight day, and press the button to start the fun!
 
 #include <LoRa.h>
 #include <SPI.h>
@@ -45,12 +45,12 @@ long pressure, gpsAlt, bmeAlt, start, time;
 int temp, humidity;
 bool timerBegun, cutdownState, altValid;
 
-// Declaring objects.
-TinyGPSPlus gps;
 Servo servo;
 
-// The serial connection to the GPS device.
+#ifdef GPS
+TinyGPSPlus gps;
 SoftwareSerial ss(RX_PIN, TX_PIN);
+#endif
 
 long tooLongMS = TOO_LONG * 60000;
 
@@ -73,7 +73,9 @@ void setup() {
 #ifdef DEVMODE
   Serial.begin(MONITOR_BAUD);
 #endif
+#ifdef GPS
   ss.begin(GPS_BAUD);
+#endif
   Wire.begin();
   // BME280setI2Caddress(BME_ADDRESS); // This gave me many issues in testing, don't do it!
   BME280setup();
@@ -138,12 +140,13 @@ void loop() {
 #ifdef BUTTON_START
   if (!timerBegun) {
 #ifdef DEVMODE
-    Serial.println("Press the BUTTON to start the program!");
+    Serial.println("Press the button to start the program!");
 #endif
     pulse();
   }
 #endif
 
+#ifdef GPS
   if (timerBegun) {
     if (millis() > 5000 && gps.charsProcessed() < 10) {
 #ifdef DEVMODE
@@ -151,7 +154,9 @@ void loop() {
 #endif
       longPulse();
     }
+#endif
 
+#ifdef GPS
     altValid = gps.altitude.isValid();
 
     if (altValid && gps.location.isValid()) {
@@ -168,6 +173,7 @@ void loop() {
       Serial.print(gpsAlt);
 #endif
     }
+#endif
 
     pressure = BME280pressure();           // Pressure in Pa.
     temp = BME280temperature();            // Temp in C * 100.
@@ -187,6 +193,7 @@ void loop() {
 
     time = start - millis();
 
+#ifdef GPS
     // Open the servo and go into an infinite sleep.
     if ((altValid && gpsAlt >= CUTDOWN_ALT) | (bmeAlt >= CUTDOWN_ALT) | (time >= tooLongMS)) {
       servo.write(OPEN_POINT);
@@ -195,7 +202,18 @@ void loop() {
       cli();        // Disable interrupts.
       sleep_mode(); // Now sleep forever! It's like a dream...
     }
-
+#endif
+#ifndef GPS
+    // Open the servo and go into an infinite sleep.
+    if ((gpsAlt >= CUTDOWN_ALT) | (bmeAlt >= CUTDOWN_ALT) | (time >= tooLongMS)) {
+      servo.write(OPEN_POINT);
+      delay(20000);
+      set_sleep_mode(SLEEP_MODE_PWR_DOWN);
+      cli();        // Disable interrupts.
+      sleep_mode(); // Now sleep forever! It's like a dream...
+    }
+    gpsAlt += TESTING_INCREMENTS;
+#endif
     delay(250);
   }
 #endif

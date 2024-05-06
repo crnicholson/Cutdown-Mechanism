@@ -7,12 +7,15 @@
 #define RESTING_POINT 90       // Resting or middle point of the servo, in degrees.
 #define OPEN_POINT 180         // Value in degrees where the servo has dropped the glider.
 #define CLOSED_POINT 0         // Value in degrees where the servo has not dropped the glider.
+#define TESTING_ALT 100        // Altitude in meters to test the cutdown mechanism.
+#define TESTING_INCREMENTS 100 // Number that is added to the altitude every pass through the loop.
 
 // Enables.
+#define GPS          // Do you need the GPS module?
 #define BUTTON_START // If enabled, the countdown timer starts when you press the button. Otherwise, it starts shortly after power-on.
 #define DEVMODE      // If enabled, the serial monitor will be enabled and data will be printed on it.
-#define LORA_MODE    // If enabled, LoRa can be used to activate the cutdown mechanism. Note that this should only be used for ground testing.
-#define REMOTE       // If enabled, the board acts like a remote to activate the cutdown mechanism. If disabled, the board acts like the receiver for the cutdown mechanism.
+// #define LORA_MODE // If enabled, LoRa can be used to activate the cutdown mechanism. Note that this should only be used for ground testing.
+#define REMOTE // If enabled, the board acts like a remote to activate the cutdown mechanism. If disabled, the board acts like the receiver for the cutdown mechanism.
 
 // LoRa settings.
 #define SYNC_WORD 0xFB      // Only other devices with this sync word can receive your broadcast.
