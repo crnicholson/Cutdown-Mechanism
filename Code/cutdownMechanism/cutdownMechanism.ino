@@ -40,8 +40,8 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #include "headers/settings.h"
 
 // Variables.
-float lat, lon;
-long pressure, gpsAlt, bmeAlt, start, time;
+float lat, lon, pressure;
+long gpsAlt, bmeAlt, start, time;
 int temp, humidity;
 bool timerBegun, cutdownState, altValid;
 
@@ -154,68 +154,69 @@ void loop() {
 #endif
       longPulse();
     }
-#endif
+  }
 
-#ifdef GPS
-    altValid = gps.altitude.isValid();
+  altValid = gps.altitude.isValid();
 
-    if (altValid && gps.location.isValid()) {
-      lat = gps.location.lat();
-      lon = gps.location.lng();
-      gpsAlt = gps.altitude.meters();
-
-#ifdef DEVMODE
-      Serial.print("Lat: ");
-      Serial.print(lat, 6);
-      Serial.print(" Lon: ");
-      Serial.print(lon, 6);
-      Serial.print(" GPS Alt: ");
-      Serial.print(gpsAlt);
-#endif
-    }
-#endif
-
-    pressure = BME280pressure();           // Pressure in Pa.
-    temp = BME280temperature();            // Temp in C * 100.
-    humidity = BME280humidity();           // Humidity in %RH * 100.
-    bmeAlt = BME280altitude(REF_PRESSURE); // Altitude in meters.
+  if (altValid && gps.location.isValid()) {
+    lat = gps.location.lat();
+    lon = gps.location.lng();
+    gpsAlt = gps.altitude.meters();
 
 #ifdef DEVMODE
-    Serial.print(" BME Alt: ");
-    Serial.print(bmeAlt);
-    Serial.print(" Pressure (hPa): ");
-    Serial.print(pressure / 100);
-    Serial.print(" Temp (C): ");
-    Serial.print(temp / 100);
-    Serial.print(" Humidity (%RH): ");
-    Serial.println(humidity / 100);
+    Serial.print("Lat: ");
+    Serial.print(lat, 6);
+    Serial.print(" Lon: ");
+    Serial.print(lon, 6);
+    Serial.print(" GPS Alt: ");
+    Serial.print(gpsAlt);
+#endif
+  }
 #endif
 
-    time = start - millis();
+  pressure = BME280pressure();           // Pressure in Pa.
+  temp = BME280temperature();            // Temp in C * 100.
+  humidity = BME280humidity();           // Humidity in %RH * 100.
+  bmeAlt = BME280altitude(REF_PRESSURE); // Altitude in meters.
+
+#ifdef DEVMODE
+  Serial.print(" BME Alt (m): ");
+  Serial.print(bmeAlt);
+  Serial.print(" Pressure (hPa): ");
+  Serial.print(pressure / 100);
+  Serial.print(" Temp (C): ");
+  Serial.print(temp / 100);
+  Serial.print(" Humidity (%RH): ");
+  Serial.println(humidity / 100);
+#endif
+
+  time = millis() - start;
 
 #ifdef GPS
-    // Open the servo and go into an infinite sleep.
-    if ((altValid && gpsAlt >= CUTDOWN_ALT) | (bmeAlt >= CUTDOWN_ALT) | (time >= tooLongMS)) {
-      servo.write(OPEN_POINT);
-      delay(20000);
-      set_sleep_mode(SLEEP_MODE_PWR_DOWN);
-      cli();        // Disable interrupts.
-      sleep_mode(); // Now sleep forever! It's like a dream...
-    }
+  // Open the servo and go into an infinite sleep.
+  if ((altValid && gpsAlt >= CUTDOWN_ALT) | (bmeAlt >= CUTDOWN_ALT) | (time >= tooLongMS)) {
+    servo.write(OPEN_POINT);
+    delay(20000);
+    set_sleep_mode(SLEEP_MODE_PWR_DOWN);
+    cli();        // Disable interrupts.
+    sleep_mode(); // Now sleep forever! It's like a dream...
+  }
 #endif
 #ifndef GPS
-    // Open the servo and go into an infinite sleep.
-    if ((gpsAlt >= CUTDOWN_ALT) | (bmeAlt >= CUTDOWN_ALT) | (time >= tooLongMS)) {
-      servo.write(OPEN_POINT);
-      delay(20000);
-      set_sleep_mode(SLEEP_MODE_PWR_DOWN);
-      cli();        // Disable interrupts.
-      sleep_mode(); // Now sleep forever! It's like a dream...
-    }
-    gpsAlt += TESTING_INCREMENTS;
+  // Open the servo and go into an infinite sleep.
+  if ((gpsAlt >= CUTDOWN_ALT) | (bmeAlt >= CUTDOWN_ALT) | (time >= tooLongMS)) {
+    #ifdef DEVMODE
+    Serial.println("Opening servo and sleeping for ever.");
 #endif
-    delay(250);
+    servo.write(OPEN_POINT);
+    delay(20000);
+    set_sleep_mode(SLEEP_MODE_PWR_DOWN);
+    cli();        // Disable interrupts.
+    sleep_mode(); // Now sleep forever! It's like a dream...
   }
+  gpsAlt += TESTING_INCREMENTS;
+#endif
+  delay(250);
 #endif
 #ifdef LORA_MODE
 #ifdef REMOTE
