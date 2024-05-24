@@ -20,7 +20,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 // General settings.
 #define GPS_BAUD 9600          // Baud rate of the serial communications to the GPS.
-#define MONITOR_BAUD 9600      // Baud rate of the serial monitor for showing data.
+#define MONITOR_BAUD 115200      // Baud rate of the serial monitor for showing data.
 #define REF_PRESSURE 101325.00 // Daily pressure at sea level today in Pa.
 #define CUTDOWN_ALT 10000      // At this altitude (in meters), drop the glider.
 #define TOO_LONG 1            // How many minutes are too many minutes before dropping the glider?
@@ -34,8 +34,8 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 // #define GPS          // Do you need the GPS module?
 #define BUTTON_START // If enabled, the countdown timer starts when you press the button. Otherwise, it starts shortly after power-on.
 #define DEVMODE // If enabled, the serial monitor will be enabled and data will be printed on it.
-// #define LORA_MODE // If enabled, LoRa can be used to activate the cutdown mechanism. Note that this should only be used for ground testing.
-#define REMOTE // If enabled, the board acts like a remote to activate the cutdown mechanism. If disabled, the board acts like the receiver for the cutdown mechanism.
+#define LORA_MODE // If enabled, LoRa can be used to activate the cutdown mechanism. Note that this should only be used for ground testing.
+// #define REMOTE // If enabled, the board acts like a remote to activate the cutdown mechanism. If disabled, the board acts like the receiver for the cutdown mechanism.
 
 // LoRa settings.
 #define SYNC_WORD 0xFB      // Only other devices with this sync word can receive your broadcast.

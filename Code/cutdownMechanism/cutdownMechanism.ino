@@ -41,7 +41,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 // Variables.
 float lat, lon, pressure;
-long gpsAlt, bmeAlt, start, time;
+long gpsAlt, bmeAlt, start, time, last;
 int temp, humidity;
 bool timerBegun, cutdownState, altValid;
 
@@ -60,6 +60,7 @@ void setup() {
 
   blink();
 
+#ifndef REMOTE
   servo.attach(SERVO_PIN);
   delay(100);
   servo.write(CLOSED_POINT);
@@ -69,6 +70,7 @@ void setup() {
   servo.write(OPEN_POINT);
   delay(5000);
   servo.write(CLOSED_POINT);
+#endif
 
 #ifdef DEVMODE
   Serial.begin(MONITOR_BAUD);
@@ -77,8 +79,11 @@ void setup() {
   ss.begin(GPS_BAUD);
 #endif
   Wire.begin();
+
+#ifndef REMOTE
   // BME280setI2Caddress(BME_ADDRESS); // This gave me many issues in testing, don't do it!
   BME280setup();
+#endif
 
 #ifdef LORA_MODE
   LoRa.setPins(SS_PIN, RESET_PIN, DIO0_PIN); // Has to be before LoRa.begin().
@@ -89,6 +94,8 @@ void setup() {
 #endif
     while (1)
       ;
+  } else {
+    Serial.println("LoRa started.");
   }
 
   LoRa.setSyncWord(SYNC_WORD);               // Defined in settings.h.
@@ -99,20 +106,20 @@ void setup() {
 
 #ifdef DEVMODE
 #ifdef LORA_MODE
-  Serial.println("StratoSoar LoRa cutdown mechanism ");
+  Serial.print("StratoSoar LoRa cutdown mechanism ");
 #ifdef REMOTE
   Serial.print("remote. Press button to trigger release.");
 #endif
 #ifndef REMOTE
-  Serial.print("receiver. Waiting for button press on remote to release.");
+  Serial.println("receiver. Waiting for button press on remote to release.");
 #endif
 #endif
 #ifndef LORA_MODE
   Serial.println("StratoSoar normal cutdown mechanism.");
 #endif
-  Serial.println("Starting in 10 seconds...");
+  Serial.println("Starting in 1 second...");
 #endif
-  delay(10000);
+  delay(1000);
 }
 
 void loop() {
@@ -205,7 +212,7 @@ void loop() {
 #ifndef GPS
   // Open the servo and go into an infinite sleep.
   if ((gpsAlt >= CUTDOWN_ALT) | (bmeAlt >= CUTDOWN_ALT) | (time >= tooLongMS)) {
-    #ifdef DEVMODE
+#ifdef DEVMODE
     Serial.println("Opening servo and sleeping for ever.");
 #endif
     servo.write(OPEN_POINT);
@@ -220,7 +227,14 @@ void loop() {
 #endif
 #ifdef LORA_MODE
 #ifdef REMOTE
+#ifdef DEVMODE
+  if (millis() - last > 1000) {
+    Serial.println("Waiting for button press to trigger release.");
+    last = millis();
+  }
+#endif
   if (digitalRead(BUTTON)) {
+    Serial.println("Button pressed, sending release signal.");
     LoRa.beginPacket();
     LoRa.print(1);
     LoRa.endPacket();
